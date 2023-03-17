@@ -44,6 +44,7 @@ export const copyFullStyle = async () => {
 }
 
 export default series(
+  // 在root目录执行clean，且会递归的执行packages/theme-chalk的clean目录
   withTaskName('clean', () => run('pnpm run clean')),
   withTaskName('createOutput', () => mkdir(epOutput, { recursive: true })),
 

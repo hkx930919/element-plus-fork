@@ -16,7 +16,7 @@ import type { OutputOptions } from 'rollup'
 export const buildModules = async () => {
   const input = excludeFiles(
     await glob('**/*.{js,ts,vue}', {
-      cwd: pkgRoot,
+      cwd: pkgRoot, // packages下的文件全部打包
       absolute: true,
       onlyFiles: true,
     })
