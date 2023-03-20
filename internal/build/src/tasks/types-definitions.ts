@@ -34,15 +34,15 @@ export const generateTypesDefinitions = async () => {
   const project = new Project({
     compilerOptions,
     tsConfigFilePath: TSCONFIG_PATH,
-    skipAddingFilesFromTsConfig: true,
+    skipAddingFilesFromTsConfig: true, // 不从tsConfigFilePath添加文件
   })
 
-  const sourceFiles = await addSourceFiles(project)
+  const sourceFiles = await addSourceFiles(project) // 手动添加packages文件
   consola.success('Added source files')
 
   typeCheck(project)
   consola.success('Type check passed!')
-
+  // 此处已按照sourceFiles生成了生命文件，但是源文件用的@element-plus仍然是@element-plus
   await project.emit({
     emitOnlyDtsFiles: true,
   })
@@ -63,10 +63,11 @@ export const generateTypesDefinitions = async () => {
 
     const subTasks = emitFiles.map(async (outputFile) => {
       const filepath = outputFile.getFilePath()
+
       await mkdir(path.dirname(filepath), {
         recursive: true,
       })
-
+      // 覆盖掉之前生成的声明文件，将@element-plus/theme-chalk转换element-plus/theme-chalk ,@element-plus/转换element-plus/es/
       await writeFile(
         filepath,
         pathRewriter('esm')(outputFile.getText()),
@@ -90,6 +91,7 @@ async function addSourceFiles(project: Project) {
   project.addSourceFileAtPath(path.resolve(projRoot, 'typings/env.d.ts'))
 
   const globSourceFile = '**/*.{js?(x),ts?(x),vue}'
+  // filePaths返回全路径
   const filePaths = excludeFiles(
     await glob([globSourceFile, '!element-plus/**/*'], {
       cwd: pkgRoot,
@@ -97,16 +99,21 @@ async function addSourceFiles(project: Project) {
       onlyFiles: true,
     })
   )
+  // element-plus下的文件返回相对路径
   const epPaths = excludeFiles(
     await glob(globSourceFile, {
       cwd: epRoot,
       onlyFiles: true,
     })
   )
+  console.log('epPaths', epPaths)
+  console.log('filePaths', filePaths)
 
   const sourceFiles: SourceFile[] = []
   await Promise.all([
+    // packages下的文件（排除掉element-plus目录），vue文件提取js内容，然后createSourceFile加入sourceFiles
     ...filePaths.map(async (file) => {
+      // vue文件使用vueCompiler编译后提取js内容
       if (file.endsWith('.vue')) {
         const content = await readFile(file, 'utf-8')
         const hasTsNoCheck = content.includes('@ts-nocheck')
@@ -116,7 +123,7 @@ async function addSourceFiles(project: Project) {
         if (script || scriptSetup) {
           let content =
             (hasTsNoCheck ? '// @ts-nocheck\n' : '') + (script?.content ?? '')
-
+          // setup需要使用compileScript编译后才能获取到转换后的js代码
           if (scriptSetup) {
             const compiled = vueCompiler.compileScript(sfc.descriptor, {
               id: 'xxx',
@@ -132,10 +139,12 @@ async function addSourceFiles(project: Project) {
           sourceFiles.push(sourceFile)
         }
       } else {
+        // 非vue文件直接用全路径添加
         const sourceFile = project.addSourceFileAtPath(file)
         sourceFiles.push(sourceFile)
       }
     }),
+    // packages/element-plus的文件使用createSourceFile创建，创建声明文件后会放到dist/types/packages文件夹下
     ...epPaths.map(async (file) => {
       const content = await readFile(path.resolve(epRoot, file), 'utf-8')
       sourceFiles.push(
