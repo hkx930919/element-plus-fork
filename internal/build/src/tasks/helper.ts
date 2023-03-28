@@ -180,7 +180,7 @@ const transformFunction = (str: string) => {
 
   return `(${params}) => ${returns}`
 }
-
+// 基于文档提供vue组件库的代码提示文件
 export const buildHelper: TaskFunction = (done) => {
   const { name, version } = getPackageManifest(epPackage)
 

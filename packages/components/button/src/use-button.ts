@@ -42,10 +42,12 @@ export const useButton = (
   // add space between two characters in Chinese
   const shouldAddSpace = computed(() => {
     const defaultSlot = slots.default?.()
+    console.log('defaultSlot', defaultSlot)
     if (autoInsertSpace.value && defaultSlot?.length === 1) {
       const slot = defaultSlot[0]
       if (slot?.type === Text) {
         const text = slot.children as string
+        // 两个汉字
         return /^\p{Unified_Ideograph}{2}$/u.test(text.trim())
       }
     }

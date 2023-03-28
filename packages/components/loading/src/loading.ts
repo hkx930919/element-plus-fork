@@ -149,7 +149,7 @@ export function createLoadingComponent(options: LoadingOptionsResolved) {
       }
     },
   })
-
+  // 使用createApp创建，类似于vue2的Extend
   const loadingInstance = createApp(elLoadingComponent)
   const vm = loadingInstance.mount(document.createElement('div'))
 

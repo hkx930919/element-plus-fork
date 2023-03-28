@@ -77,6 +77,7 @@ export const provideGlobalConfig = (
   global = false
 ) => {
   const inSetup = !!getCurrentInstance()
+  // provide和inject必须在setup中同步调用
   const oldConfig = inSetup ? useGlobalConfig() : undefined
 
   const provideFn = app?.provide ?? (inSetup ? provide : undefined)
