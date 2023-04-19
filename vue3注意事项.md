@@ -165,3 +165,204 @@ export function useResizeObserver(
   }
 }
 ```
+
+# sass 使用
+
+1. `@use`导入文件
+新的@use 类似于@import。但有一些明显的区别:
+
+```scss
+@use 'buttons';ons';
+```
+
+- 该文件只导入一次，不管在项目中@use它多少次。
+- 以下划线(_)或连字符(-)开头的变量、mixin 和函数(Sass称为"成员变量")被认为是私有的，不会被导入。
+- 导入的文件（这里即buttons.scss）中的成员变量只在局部可用，而不会传递到未来的导入结果中。
+- 所有导入的成员变量默认拥有命名空间
+
+当我们@use 一个文件时，Sass会根据文件名自动生成一个命名空间:
+
+```scss
+@use 'buttons'; // 生成了一个`buttons` 命名空间
+@use 'forms'; // 生成了一个 `forms` 命名空间
+```
+
+```scss
+我们可以在导入时添加as <name>来改变或删除默认的命名空间：
+
+@use 'buttons' as *; // 星号会删除所有命名空间
+@use 'forms' as 'f';
+$btn-color: $color; // 不带命名空间的buttons.$color
+$form-border: f.$input-border; // 带有自定义命名空间的forms.$input-border
+```
+
+**导入内置的Sass模块**
+内部的Sass特性也已经转移到模块系统中，因此我们可以完全控制全局命名空间。有几个内置的模块：`math, color, string, list, map, selector和meta` ，这些模块必须在使用之前显式地导入到文件中:
+
+```scss
+@use 'sass:math';
+$half: math.percentage(1/2);
+```
+
+**可配置项**
+样式表可以使用 `!default` 标志定义变量以使它们可配置。要加载带有配置的模块，需使用`@use <url> with (<variable>: <value>, <variable>: <value>)`。配置的值将覆盖变量的默认值。
+
+```scss
+// _library.scss
+$black: #000 !default;
+$border-radius: 0.25rem !default;
+$box-shadow: 0 0.5rem 1rem rgba($black, 0.15) !default;
+
+code {
+  border-radius: $border-radius;
+  box-shadow: $box-shadow;
+}
+```
+
+```scss
+// style.scss
+@use 'library' with (
+  $black: #222,
+  $border-radius: 0.1rem
+);
+```
+
+```scss
+code {
+  border-radius: 0.1rem;
+  box-shadow: 0 0.5rem 1rem rgba(34, 34, 34, 0.15);
+}
+```
+
+2. 用`@forward`传递文件
+
+我们并不总是需要使用一个文件，并访问它的成员。有时我们只是想把它传给未来的导入操作。假设我们有多个与表单相关的partials，
+我们希望将它们全部导入为一个命名空间。我们可以用 `@forward`来实现：
+
+```scss
+// forms/_index.scss
+@forward 'input';
+@forward 'textarea';
+@forward 'select';
+@forward 'buttons';
+```
+
+**被转发的文件的成员在当前文档中不可访问，也没有创建命名空间，但是当另一个文件想要@use 或@forward 整个集合时，这些变量、函数和mixin 就是可访问的。如果转发的部分包含实际的CSS，那么在使用包之前，它也不会生成输出。**
+
+```scss
+// styles.scss
+@use 'forms'; // 导入`forms` 命名空间下的所有被转发的成员
+```
+
+>如果你要求Sass导入一个目录，它会寻找一个名为index或_index的文件
+
+默认情况下，所有公共成员将使用一个模块进行转发。但我们可以更有选择性地添加`show` 或`hide`语句，来包含或排除指定的成员
+
+```scss
+// 只转发'input' 中的 border() mixin 和 $border-color 变量
+@forward 'input' show border, $border-color;
+
+// 转发'buttons' 里的所有成员， gradient() 函数除外
+@forward 'buttons' hide gradient;
+```
+
+>当函数和mixin共享一个名称时，它们会一起显示和隐藏。
+
+为了区分来源，或避免转发模块之间的命名冲突，我们可以在转发时对模块成员使用as 前缀：
+
+```scss
+// forms/_index.scss
+// @forward "<url>" as <prefix>-*;
+// 假设两个模块都有一个background() mixin
+@forward 'input' as input-*;
+@forward 'buttons' as btn-*;
+
+// style.scss
+@use 'forms';
+@include forms.input-background();
+@include forms.btn-background();
+```
+
+# `vue-cli`和`vite`构建多入口`lib`
+>
+>构建多入口的核心在于`entry`的多入口
+>
+### vue-cli构建
+
+```js
+// vue.config.js
+const { resolve, getComponentEntries } = require('./utils')
+const pub = require('./config.pub')
+
+module.exports = {
+  outputDir: resolve('lib'),
+  configureWebpack: {
+    entry: {
+      ...getComponentEntries('packages') // 获取多入口文件
+    },
+    output: {
+      filename: '[name]/index.js', // 每个入口获取
+      libraryTarget: 'umd', 
+      library: 'aital-plugin-paper-mark',
+      umdNamedDefine: true,
+      globalObject: 'this'
+    },
+    resolve: pub.resolve
+  },
+  css: {
+    sourceMap: true,
+    extract: {
+      filename: '[name]/style.css' // css build进对应的目录
+    }
+  },
+}
+
+```
+
+### vite构建
+>
+>`vite`打包`lib`不支持多入口，只能通过api手动打包
+
+```js
+// buildModules.js
+import { build } from 'vite'
+import glob from 'fast-glob'
+import vue from '@vitejs/plugin-vue'
+// 获取入口
+const input = glob.sync('./src/packages/*/index.ts', {
+  absolute: true,
+  onlyFiles: true,
+})
+const librarys = input.map((entry) => {
+    const [,name]=/src\/packages\/(.+)\/index\.ts$/.exec(entry)
+    return {
+      entry,
+      name,
+      fileName: (format) => `packages/${name}/index.${format}.js` // 打包后的文件名
+    };
+  });
+librarys.forEach(async (lib) => {
+    await build({
+      configFile: false,
+      sourcemap: true,
+      build: {
+        lib,
+        assetsDir: "",
+        emptyOutDir: false,
+        rollupOptions: {
+            external: ['vue'],
+            output: {
+                // 在 UMD 构建模式下为这些外部化的依赖提供一个全局变量
+                globals: {
+                  vue: 'Vue',
+                },
+                assetFileNames(assetInfo){
+                    return `packages/${lib.name}/${assetInfo.name}` // 配置css等资源路径
+                }
+              }
+        },
+      },
+      plugins: [vue()],
+    });
+  });
+```
